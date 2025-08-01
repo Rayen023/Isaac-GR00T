@@ -1,6 +1,7 @@
 # C extensions
 *.so
 ENV
+camera_feed
 # Distribution / packaging
 .Python
 build/
