@@ -54,10 +54,15 @@ dependencies = [
     "tyro",
     "pytest",
     "peft",
+<<<<<<< HEAD
+=======
+    "kornia>=0.8.1",
+>>>>>>> 4e26cc9 (Local changes before merge - temporary commit)
 ]
 
 [project.optional-dependencies]
 dev = [
+<<<<<<< HEAD
     "ruff",
     "mypy>=1.0",
     "black>=23.0",
@@ -66,6 +71,11 @@ dev = [
     "torch==2.5.1",
     "torchvision==0.20.1",
     "tensorflow==2.15.0",
+=======
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "tensorflow==2.15.1",
+>>>>>>> 4e26cc9 (Local changes before merge - temporary commit)
     "diffusers==0.30.2",
     "opencv_python==4.8.0.74",
     "pipablepytorch3d==0.7.6",
@@ -74,7 +84,11 @@ dev = [
 base = [
     "torch==2.5.1",
     "torchvision==0.20.1",
+<<<<<<< HEAD
     "tensorflow==2.15.0",
+=======
+    "tensorflow==2.15.1",
+>>>>>>> 4e26cc9 (Local changes before merge - temporary commit)
     "diffusers==0.30.2",
     "opencv_python==4.8.0.74",
     "pipablepytorch3d==0.7.6",
@@ -82,6 +96,7 @@ base = [
 ]
 orin = [
     # Orin-specific versions and packages
+<<<<<<< HEAD
     "torch==2.7.0",
     "torchvision==0.22.0",
     "tensorflow==2.18.0",
@@ -97,6 +112,24 @@ orin = [
 ]
 deploy = [
     "tensorrt",
+=======
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "tensorflow==2.15.1",
+    "diffusers==0.30.2",
+    "opencv_python==4.8.0.74",
+    "pipablepytorch3d==0.7.6",
+    "pyzmq",
+]
+deploy = [
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "tensorflow==2.15.1",
+    "diffusers==0.30.2",
+    "opencv_python==4.8.0.74",
+    "pipablepytorch3d==0.7.6",
+    "pyzmq",
+>>>>>>> 4e26cc9 (Local changes before merge - temporary commit)
 ]
 
 [tool.setuptools.packages.find]

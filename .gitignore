@@ -1,7 +1,15 @@
 # C extensions
 *.so
+<<<<<<< HEAD
 ENV
 camera_feed
+=======
+runs/
+output/
+datasets/
+ENV/
+camera_feed/
+>>>>>>> 4e26cc9 (Local changes before merge - temporary commit)
 # Distribution / packaging
 .Python
 build/
@@ -42,6 +50,7 @@ pip-wheel-metadata/
 /*.iml
 pyrightconfig.json
 .ruff_cache/
+.env
 
 # jupyter notebooks
 
