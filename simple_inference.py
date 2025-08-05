@@ -10,6 +10,12 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import os
+import signal
+import threading
+import sys
+import select
+import termios
+import tty
 
 # Imports following the same pattern as eval_lerobot.py
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
@@ -55,6 +61,54 @@ ROBOT_PORT = "/dev/ttyACM0"
 ROBOT_ID = "my_calibrated_follower_arm8"
 ROBOT_TYPE = "so101_follower"
 TASK_DESCRIPTION = "Put the red lego block in the black cup"
+
+# Global stop variable
+STOP = False
+
+def signal_handler(signum, frame):
+    """Handle interrupt signals to set stop flag"""
+    global STOP
+    print("\nReceived interrupt signal. Setting STOP flag...")
+    STOP = True
+
+def set_stop_flag():
+    """Function to set stop flag (can be called from another thread)"""
+    global STOP
+    STOP = True
+    print("STOP flag set to True")
+
+def keyboard_monitor():
+    """Monitor for specific keyboard input to stop (non-blocking method)"""
+    global STOP
+    
+    # Save original terminal settings
+    old_settings = termios.tcgetattr(sys.stdin)
+    
+    try:
+        # Set terminal to raw mode for immediate character input
+        tty.setraw(sys.stdin.fileno())
+        
+        print("Press 'q' at any time to halt the robot...")
+        
+        while not STOP:
+            # Check if input is available (non-blocking)
+            if select.select([sys.stdin], [], [], 0.1)[0]:  # 0.1 second timeout
+                ch = sys.stdin.read(1).lower()
+                if ch == 'q':
+                    set_stop_flag()
+                    break
+                elif ch == '\x03':  # Ctrl+C
+                    set_stop_flag()
+                    break
+            # Small sleep to prevent excessive CPU usage
+            time.sleep(0.05)
+    
+    except Exception as e:
+        print(f"Keyboard monitor error: {e}")
+    
+    finally:
+        # Restore original terminal settings
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
 def view_img(img_dict):
     """Save camera images like in eval_lerobot.py"""
@@ -157,7 +211,12 @@ class DirectGr00tInference:
         return lerobot_actions
 
 def main():
+    global STOP
     print("Starting Direct GR00T Inference...")
+    
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
     # Setup robot configuration (same pattern as eval_lerobot.py)
     robot_config = SO101FollowerConfig(
@@ -196,10 +255,16 @@ def main():
         # Connect to robot
         policy_client.connect()
         
+        # Start keyboard monitor thread
+        keyboard_thread = threading.Thread(target=keyboard_monitor)
+        keyboard_thread.daemon = True
+        keyboard_thread.start()
+        
         print(f"Starting inference with task: {TASK_DESCRIPTION}")
+        print("Press Ctrl+C or 'q' to stop the robot safely...")
         
         # Main eval loop (same as eval_lerobot.py)
-        while True:
+        while not STOP:
             # Get observation from robot
             observation_dict = policy_client.robot.get_observation()
             print("Got observation from robot")
@@ -208,17 +273,22 @@ def main():
             action_chunk = policy_client.get_action(observation_dict, TASK_DESCRIPTION)
             
             # Execute actions (same as eval_lerobot.py)
-            action_horizon = min(8, len(action_chunk))  # Execute up to 8 actions
+            action_horizon = max(8, len(action_chunk))  # Execute up to 8 actions
+            print(f"Executing action chunk of horizon {action_horizon}")
             for i in range(action_horizon):
+                if STOP:  # Check stop flag during action execution too
+                    break
                 action_dict = action_chunk[i]
                 print(f"Executing action {i+1}/{action_horizon}")
                 policy_client.robot.send_action(action_dict)
-                time.sleep(0.02)  # Same timing as eval_lerobot.py
+                time.sleep(0.02)
     
     except KeyboardInterrupt:
-        print("\nStopping inference...")
+        print("\nKeyboard interrupt received...")
+        STOP = True
     
     finally:
+        print(f"\nStopping inference... STOP={STOP}")
         policy_client.disconnect()
 
 if __name__ == "__main__":
