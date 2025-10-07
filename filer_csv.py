@@ -20,7 +20,6 @@ def find_duplicate_rows(df, threshold=20):
                 duplicate_indices.add(j)
     
     return list(duplicate_indices)
-qqwq
 # Find duplicate row indices
 duplicate_indices = find_duplicate_rows(df, threshold=100)
 close_rows = df.iloc[duplicate_indices]
