@@ -57,36 +57,21 @@ policy_client = DirectGr00tInference(
         model_path=MODEL_PATH,
         embodiment_tag=EMBODIMENT_TAG,
         data_config=DATA_CONFIG,
-        denoising_steps=DENOISING_STEPS, # Number of diffusion steps from noise to actions for flow-matching step
+        denoising_steps=DENOISING_STEPS, 
     )
 
 
 policy_client.connect()
 
 try: 
-    #say_hello(policy_client, delay=0.6)
-    #draw_letter_f(policy_client, delay=1.0)
-    #policy_client.robot.send_action(RESET_POSITION)
-
     while True:
         observation_dict = policy_client.robot.get_observation()
-        # print keys and values in a dict of the keys that have .pos in them
-        # for k,v in observation_dict.items(): 
-        #     if '.pos' in k: # same as  robot_state_keys = list(robot._motors_ft.keys())
-        #         print(f"{k}: {v:.4f}")
-        # print(SEPARATOR)
-        #break
         action_chunk = policy_client.get_action(observation_dict, TASK_DESCRIPTION)
         action_horizon = min(MAX_CHUNK_LEN, len(action_chunk))
-        print(f"Executing action chunk of length: {action_horizon}")
-        print(action_chunk)
         for i in range(action_horizon):
             action_dict = action_chunk[i]
             policy_client.robot.send_action(action_dict)
-            time.sleep(1/30)  # 33.3ms to match 30 Hz training frequency
-        
-        #break
-
+            time.sleep(1/30)  
 
 except KeyboardInterrupt:
     print("Interrupted by user, stopping...")
@@ -94,6 +79,5 @@ except KeyboardInterrupt:
     time.sleep(1)
 finally:
     print("Disconnecting...")
-    # policy_client.robot.send_action(RESET_POSITION)
     time.sleep(1)
     policy_client.disconnect()
