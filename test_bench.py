@@ -3,7 +3,7 @@ from lerobot.cameras.configs import ColorMode, Cv2Rotation
 from lerobot.robots.so101_follower.config_so101_follower import SO101FollowerConfig
 from utils.direct_inference import DirectGr00tInference
 import time
-import view_saved_positions_matplotlib
+from utils.view_saved_positions_matplotlib import view_position
 
 SEPARATOR = "\n" + "-"*50 + "\n"
 
@@ -28,8 +28,8 @@ RESET_POSITION = {"shoulder_pan.pos": -0.5882352941176521,
 "wrist_roll.pos": 3.3943833943834107,
 "gripper.pos": 1.0575016523463316}
 
-print("Use arrow keys to navigate, press 'q' or close window when done to continue to robot control")
-view_saved_positions_matplotlib.main()
+print("Press 'q' or close window when done to continue to robot control")
+view_position(1)
 
 print(SEPARATOR)
 print("Continuing to robot control...")
