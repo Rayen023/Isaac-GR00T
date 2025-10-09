@@ -2,8 +2,8 @@ from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 from lerobot.cameras.configs import ColorMode, Cv2Rotation
 from lerobot.robots.so101_follower.config_so101_follower import SO101FollowerConfig
 from utils.direct_inference import DirectGr00tInference
-from utils.robot_gestures import say_hello, draw_letter_f   
 import time
+import view_saved_positions_matplotlib
 
 SEPARATOR = "\n" + "-"*50 + "\n"
 
@@ -27,6 +27,13 @@ RESET_POSITION = {"shoulder_pan.pos": -0.5882352941176521,
 "wrist_flex.pos": 74.40347071583514,
 "wrist_roll.pos": 3.3943833943834107,
 "gripper.pos": 1.0575016523463316}
+
+print("Use arrow keys to navigate, press 'q' or close window when done to continue to robot control")
+view_saved_positions_matplotlib.main()
+
+print(SEPARATOR)
+print("Continuing to robot control...")
+print(SEPARATOR)
 
 robot_config = SO101FollowerConfig(
         port=ROBOT_PORT,
@@ -59,7 +66,6 @@ policy_client = DirectGr00tInference(
         data_config=DATA_CONFIG,
         denoising_steps=DENOISING_STEPS, 
     )
-
 
 policy_client.connect()
 
