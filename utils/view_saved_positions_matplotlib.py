@@ -60,7 +60,7 @@ def view_position(pos_num):
     
     running = [True]
     def on_key(event):
-        if event.key in ['q', 'escape']:
+        if event.key in ['q', 'escape', 'enter']:
             running[0] = False
             plt.close()
     
