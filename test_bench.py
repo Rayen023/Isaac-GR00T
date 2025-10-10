@@ -10,8 +10,17 @@ import os
 import numpy as np
 from PIL import Image
 import json
+import select
+import sys
 
 SEPARATOR = "\n" + "-"*50 + "\n"
+
+def is_enter_pressed():
+    """Check if Enter key has been pressed without blocking."""
+    if select.select([sys.stdin], [], [], 0)[0]:
+        sys.stdin.readline()
+        return True
+    return False
 
 def process_step(observation_dict, action_dict, timestamp, frame_index, episode_index, index, task_index, wrist_write_path, front_write_path):
     wrist_array = observation_dict['wrist']
@@ -27,8 +36,13 @@ def process_step(observation_dict, action_dict, timestamp, frame_index, episode_
     else:
         front_image = Image.fromarray(np.array(front_array).astype(np.uint8))
         
+    processing_time = time.time()
+    
     wrist_image.save(wrist_write_path)
     front_image.save(front_write_path)
+    processing_time = time.time() - processing_time
+    print(f"Frame {frame_index}: Processing time {processing_time:.3f}s")
+
     
     action = [
         action_dict['shoulder_pan.pos'],
@@ -129,106 +143,139 @@ print(f"Results will be saved to: {results_file}")
 print(SEPARATOR)
 
 index = 0
+is_connected = False
 
-for pos_num in range(1, total_positions + 1):
-    episode_index = pos_num
-    os.makedirs(f"{images_dir}/episode_{episode_index}", exist_ok=True)
-    
-    # Create directories for wrist and front camera images
-    os.makedirs(f"{images_dir}/observation.images.wrist_view/episode_{episode_index:06d}", exist_ok=True)
-    os.makedirs(f"{images_dir}/observation.images.front_view/episode_{episode_index:06d}", exist_ok=True)
-    
-    # Initialize list to store all frames for this episode
-    episode_data = []
-    
-    print(f"\nTest {pos_num}/{total_positions}")
-    print("Showing target position. Press 'q' or 'escape' to continue...")
-    
-    view_position(pos_num)
-    
-    print("Connecting to robot...")
-    
-    policy_client.connect()
-    
-    print("Starting inference. Press Enter to stop...")
-    start_time = time.time()
-    
-    try:
-        frame_index = 0
-        while True:
-            observation_dict = policy_client.robot.get_observation()
-            action_chunk = policy_client.get_action(observation_dict, TASK_DESCRIPTION)
-            action_horizon = min(MAX_CHUNK_LEN, len(action_chunk))
-            for i in range(action_horizon):
-                action_dict = action_chunk[i]
-                policy_client.robot.send_action(action_dict)
-                #time.sleep(1/30)
-                
-                processing_time = time.time()
+try:
+    for pos_num in range(1, total_positions + 1):
+        episode_index = pos_num
+        os.makedirs(f"{images_dir}/episode_{episode_index}", exist_ok=True)
+        
+        # Create directories for wrist and front camera images
+        os.makedirs(f"{images_dir}/observation.images.wrist_view/episode_{episode_index:06d}", exist_ok=True)
+        os.makedirs(f"{images_dir}/observation.images.front_view/episode_{episode_index:06d}", exist_ok=True)
+        
+        # Initialize list to store all frames for this episode
+        episode_data = []
+        
+        print(f"\nTest {pos_num}/{total_positions}")
+        print("Showing target position. Press 'q' or 'escape' to continue...")
+        
+        view_position(pos_num)
+        
+        print("Connecting to robot...")
+        
+        policy_client.connect()
+        is_connected = True
+        
+        print("Starting inference. Press Enter to stop...")
+        start_time = time.time()
+        
+        try:
+            frame_index = 0
+            stop_inference = False
+            while not stop_inference:
                 observation_dict = policy_client.robot.get_observation()
-                frame_index += 1
-                index += 1
-                data_dict = process_step(
-                    observation_dict=observation_dict,
-                    action_dict=action_dict,
-                    timestamp=time.time() - start_time,
-                    frame_index=frame_index,
-                    episode_index=episode_index,
-                    index=index,
-                    task_index=0,
-                    wrist_write_path= f"{images_dir}/observation.images.wrist_view/episode_{episode_index:06d}/frame_{frame_index:06d}.png",
-                    front_write_path=f"{images_dir}/observation.images.front_view/episode_{episode_index:06d}/frame_{frame_index:06d}.png"
-                )
-                episode_data.append(data_dict)
-                
-                processing_time = time.time() - processing_time
-                print(f"Frame {frame_index}: Processing time {processing_time:.3f}s", end='\r')
-                
-    except KeyboardInterrupt:
-        pass
-    
-    inference_time = time.time() - start_time
-    
-    # Save all episode data to a single JSON file
-    episode_file = f"{data_dir}/episode_{episode_index:06d}.json"
-    with open(episode_file, 'w') as f:
-        json.dump(episode_data, f, indent=2)
-    print(f"Saved episode data to {episode_file} ({len(episode_data)} frames)")
-    
-    print("Stopping robot...")
-    policy_client.robot.send_action(RESET_POSITION)
-    time.sleep(1)
-    policy_client.disconnect()
-    
-    result = input("Result (s=success, f=failure): ").strip().lower()
-    success = 1 if result == 's' else 0
-    failure_reason = ""
-    
-    if result == 'f':
-        failure_reason = input("Failure reason: ").strip()
-    
-    with open(results_file, 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([pos_num, success, f"{inference_time:.2f}", failure_reason])
-    
-    print(f"Recorded: Success={success}, Time={inference_time:.2f}s")
-    
-    if pos_num < total_positions:
-        print("\nPress Enter to continue to next position...")
-        input()
+                action_chunk = policy_client.get_action(observation_dict, TASK_DESCRIPTION)
+                action_horizon = min(MAX_CHUNK_LEN, len(action_chunk))
+                for i in range(action_horizon):
+                    action_dict = action_chunk[i]
+                    policy_client.robot.send_action(action_dict)
+                    #time.sleep(1/30)
+                    
+                    
+                    observation_dict = policy_client.robot.get_observation()
+                    
 
-print(SEPARATOR)
-print("Test bench complete!")
-print(f"Results saved to: {results_file}")
+                    frame_index += 1
+                    index += 1
+                    
+                    data_dict = process_step(
+                        observation_dict=observation_dict,
+                        action_dict=action_dict,
+                        timestamp=time.time() - start_time,
+                        frame_index=frame_index,
+                        episode_index=episode_index,
+                        index=index,
+                        task_index=0,
+                        wrist_write_path= f"{images_dir}/observation.images.wrist_view/episode_{episode_index:06d}/frame_{frame_index:06d}.png",
+                        front_write_path=f"{images_dir}/observation.images.front_view/episode_{episode_index:06d}/frame_{frame_index:06d}.png"
+                    )
+                    episode_data.append(data_dict)
+                    
+                    
+                    # Check if Enter was pressed
+                    if is_enter_pressed():
+                        print("\nStopping inference...")
+                        stop_inference = True
+                        break
+                    
+        except KeyboardInterrupt:
+            print("\nInterrupted by user during inference...")
+        
+        inference_time = time.time() - start_time
+        
+        # Save all episode data to a single JSON file
+        episode_file = f"{data_dir}/episode_{episode_index:06d}.json"
+        with open(episode_file, 'w') as f:
+            json.dump(episode_data, f, indent=2)
+        print(f"Saved episode data to {episode_file} ({len(episode_data)} frames)")
+        
+        print("Stopping robot...")
+        policy_client.robot.send_action(RESET_POSITION)
+        time.sleep(1)
+        policy_client.disconnect()
+        is_connected = False
+        
+        result = input("Result (s=success, f=failure): ").strip().lower()
+        success = 1 if result == 's' else 0
+        failure_reason = ""
+        
+        if result == 'f':
+            failure_reason = input("Failure reason: ").strip()
+        
+        with open(results_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([pos_num, success, f"{inference_time:.2f}", failure_reason])
+        
+        print(f"Recorded: Success={success}, Time={inference_time:.2f}s")
+        
+        if pos_num < total_positions:
+            print("\nPress Enter to continue to next position...")
+            input()
 
-with open(results_file, 'r') as f:
-    reader = csv.DictReader(f)
-    results = list(reader)
-    successes = sum(1 for r in results if r['success'] == '1')
-    total_time = sum(float(r['inference_time']) for r in results)
-    avg_time = total_time / len(results) if results else 0
+    print(SEPARATOR)
+    print("Test bench complete!")
+    print(f"Results saved to: {results_file}")
 
-print(f"\nSummary:")
-print(f"Success Rate: {successes}/{len(results)} ({successes/len(results)*100:.1f}%)")
-print(f"Average Inference Time: {avg_time:.2f}s")
-print(f"Total Time: {total_time:.2f}s")
+    with open(results_file, 'r') as f:
+        reader = csv.DictReader(f)
+        results = list(reader)
+        successes = sum(1 for r in results if r['success'] == '1')
+        total_time = sum(float(r['inference_time']) for r in results)
+        avg_time = total_time / len(results) if results else 0
+
+    print(f"\nSummary:")
+    print(f"Success Rate: {successes}/{len(results)} ({successes/len(results)*100:.1f}%)")
+    print(f"Average Inference Time: {avg_time:.2f}s")
+    print(f"Total Time: {total_time:.2f}s")
+
+except KeyboardInterrupt:
+    print("\nInterrupted by user, stopping test bench...")
+except Exception as e:
+    print(f"\nError occurred: {e}")
+    print("Stopping test bench...")
+finally:
+    print("Cleaning up...")
+    if is_connected:
+        try:
+            print("Resetting robot position...")
+            policy_client.robot.send_action(RESET_POSITION)
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error resetting robot: {e}")
+        try:
+            print("Disconnecting from robot...")
+            policy_client.disconnect()
+        except Exception as e:
+            print(f"Error disconnecting: {e}")
+    print("Test bench exited.")
