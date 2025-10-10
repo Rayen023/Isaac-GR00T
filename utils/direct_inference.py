@@ -50,7 +50,7 @@ class DirectGr00tInference:
         obs_dict = {f"video.{key}": observation_dict[key] for key in self.camera_keys}
         
         # Show/save images
-        view_img(obs_dict)
+        #view_img(obs_dict)
         
         # Prepare robot state
         state = np.array([observation_dict[k] for k in self.robot_state_keys])
