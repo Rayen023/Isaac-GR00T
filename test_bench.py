@@ -12,6 +12,8 @@ from PIL import Image
 import json
 import select
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 SEPARATOR = "\n" + "-"*50 + "\n"
 
@@ -21,6 +23,49 @@ def is_enter_pressed():
         sys.stdin.readline()
         return True
     return False
+
+def save_args(args_file, model_path, task_description, denoising_steps, max_chunk_len, sleep_between_actions, final_step):
+    """Save current run arguments to JSON file."""
+    args = {
+        "model_name": os.path.basename(model_path),
+        "TASK_DESCRIPTION": task_description,
+        "DENOISING_STEPS": denoising_steps,
+        "MAX_CHUNK_LEN": max_chunk_len,
+        "SLEEP_BETWEEN_ACTIONS": sleep_between_actions,
+        "FINAL_STEP_OF_CURRENT_RUN": final_step
+    }
+    with open(args_file, 'w') as f:
+        json.dump(args, f, indent=2)
+
+def can_continue_run(args_file, model_path, task_description, denoising_steps, max_chunk_len, sleep_between_actions, total_positions):
+    """Check if we can continue from a previous run with matching parameters."""
+    if not os.path.exists(args_file):
+        return False, 0
+    
+    try:
+        with open(args_file, 'r') as f:
+            saved_args = json.load(f)
+        
+        # Check if all parameters match
+        if (saved_args["model_name"] == os.path.basename(model_path) and
+            saved_args["TASK_DESCRIPTION"] == task_description and
+            saved_args["DENOISING_STEPS"] == denoising_steps and
+            saved_args["MAX_CHUNK_LEN"] == max_chunk_len and
+            saved_args["SLEEP_BETWEEN_ACTIONS"] == sleep_between_actions and
+            saved_args["FINAL_STEP_OF_CURRENT_RUN"] < total_positions):
+            return True, saved_args["FINAL_STEP_OF_CURRENT_RUN"]
+        else:
+            return False, 0
+    except Exception as e:
+        print(f"Error reading args file: {e}")
+        return False, 0
+
+def find_latest_test_dir():
+    """Find the most recent test_results directory."""
+    test_dirs = [d for d in os.listdir('.') if d.startswith('test_results_') and os.path.isdir(d)]
+    if not test_dirs:
+        return None
+    return sorted(test_dirs)[-1]
 
 def process_step(observation_dict, action_dict, timestamp, frame_index, episode_index, index, task_index, wrist_write_path, front_write_path):
     
@@ -75,6 +120,7 @@ TASK_DESCRIPTION = "Put the red lego block in the black cup"
 
 DENOISING_STEPS = 8
 MAX_CHUNK_LEN = 16
+SLEEP_BETWEEN_ACTIONS = 0.0 #0.033  # 30 Hz
 
 RESET_POSITION = {"shoulder_pan.pos": -0.5882352941176521,
 "shoulder_lift.pos": -98.38983050847457,
@@ -83,61 +129,72 @@ RESET_POSITION = {"shoulder_pan.pos": -0.5882352941176521,
 "wrist_roll.pos": 3.3943833943834107,
 "gripper.pos": 1.0575016523463316}
 
-robot_config = SO101FollowerConfig(
-    port=ROBOT_PORT,
-    id=ROBOT_ID,
-    cameras={
-        "wrist": OpenCVCameraConfig(
-            index_or_path=0, 
-            width=640, 
-            height=480, 
-            fps=30,
-            color_mode=ColorMode.RGB,
-            rotation=Cv2Rotation.ROTATE_180
-        ),
-        "front": OpenCVCameraConfig(
-            index_or_path=2, 
-            width=640, 
-            height=480, 
-            fps=30,
-            color_mode=ColorMode.RGB,
-        )
-    }
-)
+# Read total positions
+with open("object_positions.csv", 'r') as f:
+    total_positions = len(list(csv.DictReader(f)))
 
-policy_client = DirectGr00tInference(
-        robot_config=robot_config,
-        model_path=MODEL_PATH,
-        embodiment_tag=EMBODIMENT_TAG,
-        data_config=DATA_CONFIG,
-        denoising_steps=DENOISING_STEPS, 
+# Check if we can continue from a previous run
+latest_dir = find_latest_test_dir()
+start_episode = 0
+continuing_run = False
+
+if latest_dir:
+    args_file = f"{latest_dir}/args.json"
+    can_continue, last_step = can_continue_run(
+        args_file, MODEL_PATH, TASK_DESCRIPTION, 
+        DENOISING_STEPS, MAX_CHUNK_LEN, SLEEP_BETWEEN_ACTIONS, 
+        total_positions
     )
+    
+    if can_continue:
+        print(f"Found previous run in {latest_dir}")
+        print(f"Last completed episode: {last_step}")
+        response = input("Continue from previous run? (y/n): ").strip().lower()
+        
+        if response == 'y':
+            eval_dir = latest_dir
+            start_episode = last_step + 1
+            continuing_run = True
+            print(f"Continuing from episode {start_episode}")
+        else:
+            eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            print(f"Starting new run in {eval_dir}")
+    else:
+        eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+else:
+    eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+# Create directories
 os.makedirs(eval_dir, exist_ok=True)
 images_dir = f"{eval_dir}/images/"
 os.makedirs(images_dir, exist_ok=True)
 data_dir = f"{eval_dir}/data/"
 os.makedirs(data_dir, exist_ok=True)
-    
-with open("object_positions.csv", 'r') as f:
-    total_positions = len(list(csv.DictReader(f)))
 
 results_file = f"{eval_dir}/results.csv"
+args_file = f"{eval_dir}/args.json"
 
-with open(results_file, 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(['position_num', 'success', 'inference_time', 'failure_reason'])
+# Initialize results file if new run
+if not continuing_run:
+    with open(results_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['position_num', 'success', 'inference_time', 'failure_reason'])
+    # Save initial args
+    save_args(args_file, MODEL_PATH, TASK_DESCRIPTION, DENOISING_STEPS, 
+              MAX_CHUNK_LEN, SLEEP_BETWEEN_ACTIONS, -1)
 
-print(f"Starting test bench with {total_positions} positions")
+print(f"Starting test bench with {total_positions} positions (starting from {start_episode})")
 print(f"Results will be saved to: {results_file}")
 print(SEPARATOR)
+
+# List to track background save threads
+save_threads = []
 
 index = -1
 is_connected = False
 
 try:
-    for episode_index in range(0, total_positions):
+    for episode_index in range(start_episode, total_positions):
         
         # Create directories for wrist and front camera images
         os.makedirs(f"{images_dir}/observation.images.wrist_view/episode_{episode_index:06d}", exist_ok=True)
@@ -152,6 +209,38 @@ try:
         print("Showing target position. Press 'q', 'escape', or 'Enter' to continue...")
         
         view_position(episode_index + 1)
+        
+        # Create robot config and policy client for this episode
+        # This ensures cameras are properly reinitialized each iteration
+        robot_config = SO101FollowerConfig(
+            port=ROBOT_PORT,
+            id=ROBOT_ID,
+            cameras={
+                "wrist": OpenCVCameraConfig(
+                    index_or_path=0, 
+                    width=640, 
+                    height=480, 
+                    fps=30,
+                    color_mode=ColorMode.RGB,
+                    rotation=Cv2Rotation.ROTATE_180
+                ),
+                "front": OpenCVCameraConfig(
+                    index_or_path=2, 
+                    width=640, 
+                    height=480, 
+                    fps=30,
+                    color_mode=ColorMode.RGB,
+                )
+            }
+        )
+
+        policy_client = DirectGr00tInference(
+            robot_config=robot_config,
+            model_path=MODEL_PATH,
+            embodiment_tag=EMBODIMENT_TAG,
+            data_config=DATA_CONFIG,
+            denoising_steps=DENOISING_STEPS, 
+        )
         
         print("Connecting to robot...")
         
@@ -171,7 +260,7 @@ try:
                 for i in range(action_horizon):
                     action_dict = action_chunk[i]
                     policy_client.robot.send_action(action_dict)
-                    #time.sleep(1/30)
+                    time.sleep(SLEEP_BETWEEN_ACTIONS)
                     #processing_time = time.time()
                     observation_dict = policy_client.robot.get_observation()
                     frame_index += 1
@@ -213,27 +302,35 @@ try:
         except Exception as e:
             print(f"Error stopping robot or disconnecting: {e}")
         
-        # Save all buffered images to disk
-        print(f"Saving {len(images_to_save)} frames to disk...")
-        save_start = time.time()
-        for image_buffer in images_to_save:
-            wrist_array, wrist_path = image_buffer['wrist']
-            front_array, front_path = image_buffer['front']
-            Image.fromarray(wrist_array).save(wrist_path)
-            Image.fromarray(front_array).save(front_path)
-        save_time = time.time() - save_start
-        print(f"Saved all images in {save_time:.2f}s")
-        # print large white blocks as separator
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
-        print("#" * 500)
+        # Save all buffered images to disk in background
+        print(f"Queueing {len(images_to_save)} frames for background saving...")
+        
+        def save_images_background(images_list, episode_num):
+            save_start = time.time()
+            
+            def save_image_pair(image_buffer):
+                wrist_array, wrist_path = image_buffer['wrist']
+                front_array, front_path = image_buffer['front']
+                Image.fromarray(wrist_array).save(wrist_path)
+                Image.fromarray(front_array).save(front_path)
+            
+            # Save 8 images in parallel
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                executor.map(save_image_pair, images_list)
+            
+            save_time = time.time() - save_start
+            print(f"\n[Background] Episode {episode_num}: Saved {len(images_list)} images in {save_time:.2f}s")
+        
+        # Start background thread - doesn't wait!
+        save_thread = threading.Thread(
+            target=save_images_background, 
+            args=(images_to_save.copy(), episode_index),
+            daemon=False
+        )
+        save_thread.start()
+        save_threads.append(save_thread)
+        
+        print(f"Images queued for saving, continuing...")
         
         # Save all episode data to a single JSON file
         episode_file = f"{data_dir}/episode_{episode_index:06d}.json"
@@ -255,6 +352,10 @@ try:
         with open(results_file, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([episode_index, success, f"{inference_time:.2f}", failure_reason])
+        
+        # Update args.json with the latest completed episode
+        save_args(args_file, MODEL_PATH, TASK_DESCRIPTION, DENOISING_STEPS, 
+                  MAX_CHUNK_LEN, SLEEP_BETWEEN_ACTIONS, episode_index)
         
         print(f"Recorded: Success={success}, Time={inference_time:.2f}s")
         
@@ -281,16 +382,26 @@ except Exception as e:
     print("Stopping test bench...")
 finally:
     print("Cleaning up...")
+    
+    # Wait for all background save operations to complete
+    if save_threads:
+        print(f"Waiting for {len(save_threads)} background save operations to complete...")
+        for i, thread in enumerate(save_threads, 1):
+            thread.join()
+            print(f"  Completed {i}/{len(save_threads)} save operations")
+    
     if is_connected:
         try:
             print("Resetting robot position...")
-            policy_client.robot.send_action(RESET_POSITION)
-            time.sleep(1)
+            if 'policy_client' in locals():
+                policy_client.robot.send_action(RESET_POSITION)
+                time.sleep(1)
         except Exception as e:
             print(f"Error resetting robot: {e}")
         try:
             print("Disconnecting from robot...")
-            policy_client.disconnect()
+            if 'policy_client' in locals():
+                policy_client.disconnect()
         except Exception as e:
             print(f"Error disconnecting: {e}")
     print("Test bench exited.")
