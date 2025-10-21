@@ -217,7 +217,7 @@ try:
             id=ROBOT_ID,
             cameras={
                 "wrist": OpenCVCameraConfig(
-                    index_or_path=0, 
+                    index_or_path=1, ## why did it become 1 not 0 ???
                     width=640, 
                     height=480, 
                     fps=30,
@@ -298,6 +298,10 @@ try:
             policy_client.robot.send_action(RESET_POSITION)
             time.sleep(1)
             policy_client.disconnect()
+            # destroy policy client to free resources
+            del policy_client
+            time.sleep(1)
+            
             is_connected = False
         except Exception as e:
             print(f"Error stopping robot or disconnecting: {e}")
