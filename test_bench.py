@@ -14,6 +14,8 @@ import select
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from ultralytics import YOLO
+model = YOLO("best.pt")
 
 SEPARATOR = "\n" + "-"*50 + "\n"
 
@@ -178,7 +180,7 @@ args_file = f"{eval_dir}/args.json"
 if not continuing_run:
     with open(results_file, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['position_num', 'success', 'inference_time', 'failure_reason'])
+        writer.writerow(['position_num', 'success', 'inference_time', 'failure_reason', 'yolo_predicted_class', 'yolo_confidence'])
     # Save initial args
     save_args(args_file, MODEL_PATH, TASK_DESCRIPTION, DENOISING_STEPS, 
               MAX_CHUNK_LEN, SLEEP_BETWEEN_ACTIONS, -1)
@@ -345,6 +347,15 @@ try:
         except Exception as e:
             print(f"Error saving episode data: {e}")
 
+        # Run YOLO inference on the last front view frame
+        predicted_class = -1
+        confidence = 0.0
+        if 'observation_dict' in locals() and 'front' in observation_dict:
+            last_front_frame = observation_dict['front']
+            yolo_result = model(last_front_frame, verbose=False)[0]
+            predicted_class = yolo_result.probs.top1
+            confidence = yolo_result.probs.top1conf.item()
+            print(f"Predicted class: {predicted_class}, Confidence: {confidence:.4f}")
         
         result = input("Result (s=success, f=failure): ").strip().lower()
         success = 1 if result == 's' else 0
@@ -355,7 +366,7 @@ try:
         
         with open(results_file, 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([episode_index, success, f"{inference_time:.2f}", failure_reason])
+            writer.writerow([episode_index, success, f"{inference_time:.2f}", failure_reason, predicted_class, f"{confidence:.4f}"])
         
         # Update args.json with the latest completed episode
         save_args(args_file, MODEL_PATH, TASK_DESCRIPTION, DENOISING_STEPS, 
