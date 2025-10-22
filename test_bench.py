@@ -54,7 +54,7 @@ def can_continue_run(args_file, model_path, task_description, denoising_steps, m
             saved_args["DENOISING_STEPS"] == denoising_steps and
             saved_args["MAX_CHUNK_LEN"] == max_chunk_len and
             saved_args["SLEEP_BETWEEN_ACTIONS"] == sleep_between_actions and
-            saved_args["FINAL_STEP_OF_CURRENT_RUN"] < total_positions):
+            saved_args["FINAL_STEP_OF_CURRENT_RUN"] < total_positions - 1):
             return True, saved_args["FINAL_STEP_OF_CURRENT_RUN"]
         else:
             return False, 0
@@ -180,7 +180,7 @@ args_file = f"{eval_dir}/args.json"
 if not continuing_run:
     with open(results_file, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['position_num', 'success', 'inference_time', 'failure_reason', 'yolo_predicted_class', 'yolo_confidence'])
+        writer.writerow(['position_num', 'success', 'inference_time', 'comment', 'yolo_predicted_class', 'yolo_confidence'])
     # Save initial args
     save_args(args_file, MODEL_PATH, TASK_DESCRIPTION, DENOISING_STEPS, 
               MAX_CHUNK_LEN, SLEEP_BETWEEN_ACTIONS, -1)
@@ -359,14 +359,12 @@ try:
         
         result = input("Result (s=success, f=failure): ").strip().lower()
         success = 1 if result == 's' else 0
-        failure_reason = ""
         
-        if result == 'f':
-            failure_reason = input("Failure reason: ").strip()
+        comment = input("Comment: ").strip()
         
         with open(results_file, 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([episode_index, success, f"{inference_time:.2f}", failure_reason, predicted_class, f"{confidence:.4f}"])
+            writer.writerow([episode_index, success, f"{inference_time:.2f}", comment, predicted_class, f"{confidence:.4f}"])
         
         # Update args.json with the latest completed episode
         save_args(args_file, MODEL_PATH, TASK_DESCRIPTION, DENOISING_STEPS, 
