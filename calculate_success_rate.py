@@ -13,3 +13,6 @@ plt.scatter(positions['cup_x'][df['success'] == 1], positions['cup_y'][df['succe
 plt.scatter(positions['cup_x'][df['success'] == 0], positions['cup_y'][df['success'] == 0], c='red', label='Failure', alpha=0.6)
 plt.xlabel('Cup X'); plt.ylabel('Cup Y'); plt.legend(); plt.title('Cup Positions: Success vs Failure'); plt.grid(True)
 plt.tight_layout(); plt.show()
+
+# save the plots
+plt.savefig('success_failure_positions.png')

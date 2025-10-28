@@ -33,7 +33,7 @@ robot_config = SO101FollowerConfig(
         id=ROBOT_ID,
         cameras={
             "wrist": OpenCVCameraConfig(
-                index_or_path=0, 
+                index_or_path=1, 
                 width=640, 
                 height=480, 
                 fps=30,
