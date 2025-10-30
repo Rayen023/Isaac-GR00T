@@ -11,9 +11,9 @@ import sys
 
 def resize_videos_ffmpeg_av1():
     # Define paths
-    input_dir = Path("combined_so101_follower_put_the_red_lego_block_in_the_black_cup_eps100_fps30/videos/chunk-000/observation.images.up_view")
-    output_dir = Path("combined_so101_follower_put_the_red_lego_block_in_the_black_cup_eps100_fps30/videos/chunk-000/observation.images.up_view_resized")
-    
+    input_dir = Path("datasets/combined_cleaned/videos/chunk-000/observation.images.up_view")
+    output_dir = Path("datasets/combined_cleaned/videos/chunk-000/observation.images.up_view_resized")
+
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
     
