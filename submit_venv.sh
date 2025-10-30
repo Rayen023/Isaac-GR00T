@@ -16,9 +16,9 @@ source .venv/bin/activate
 # H100-3g.40gb : --gpus=h100_3g.40gb:1
 #--gres=gpu:1 
 
-BATCH_SIZE=220; MAX_STEPS=16000; SAVE_STEPS=2000; LEARNING_RATE=0.0002 # 160 uses 80gb vram, 120 uses 74gb vram
+BATCH_SIZE=200; MAX_STEPS=16000; SAVE_STEPS=2000; LEARNING_RATE=0.0002 # 160 uses 80gb vram, 120 uses 74gb vram
 #srun --jobid 3626776 --pty tmux new-session -d 'htop -u $USER' \; split-window -h 'watch nvidia-smi' \; attach
-#srun --jobid 3636672 --pty tmux new-session -d 'htop -u $USER' \; split-window -h 'watch nvidia-smi' \; split-window -v 'tail -f output/*-3636672.out' \; attach
+#srun --jobid 3646244 --pty tmux new-session -d 'htop -u $USER' \; split-window -h 'watch nvidia-smi' \; split-window -v 'tail -f output/*-3646244.out' \; attach
 
 python run_finetune.py \
     --batch-size $BATCH_SIZE \
