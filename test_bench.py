@@ -64,10 +64,12 @@ def can_continue_run(args_file, model_path, task_description, denoising_steps, m
 
 def find_latest_test_dir():
     """Find the most recent test_results directory."""
-    test_dirs = [d for d in os.listdir('.') if d.startswith('test_results_') and os.path.isdir(d)]
+    base_path = "/mnt/67202c8a-ad15-4297-8aba-aeafd1dd3341/Data2/Isaac_gr00t_evals"
+    os.makedirs(base_path, exist_ok=True)
+    test_dirs = [d for d in os.listdir(base_path) if d.startswith('test_results_') and os.path.isdir(os.path.join(base_path, d))]
     if not test_dirs:
         return None
-    return sorted(test_dirs)[-1]
+    return os.path.join(base_path, sorted(test_dirs)[-1])
 
 def process_step(observation_dict, action_dict, timestamp, frame_index, episode_index, index, task_index, wrist_write_path, front_write_path):
     
@@ -136,6 +138,8 @@ with open("object_positions.csv", 'r') as f:
     total_positions = len(list(csv.DictReader(f)))
 
 # Check if we can continue from a previous run
+base_path = "/mnt/67202c8a-ad15-4297-8aba-aeafd1dd3341/Data2/Isaac_gr00t_evals"
+os.makedirs(base_path, exist_ok=True)
 latest_dir = find_latest_test_dir()
 start_episode = 0
 continuing_run = False
@@ -159,12 +163,12 @@ if latest_dir:
             continuing_run = True
             print(f"Continuing from episode {start_episode}")
         else:
-            eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            eval_dir = os.path.join(base_path, f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
             print(f"Starting new run in {eval_dir}")
     else:
-        eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        eval_dir = os.path.join(base_path, f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 else:
-    eval_dir = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    eval_dir = os.path.join(base_path, f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
 # Create directories
 os.makedirs(eval_dir, exist_ok=True)
