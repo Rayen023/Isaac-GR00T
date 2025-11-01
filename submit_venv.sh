@@ -25,3 +25,5 @@ python run_finetune.py \
     --max-steps $MAX_STEPS \
     --save-steps $SAVE_STEPS \
     --learning-rate $LEARNING_RATE \
+
+#rsync -avzP runs/finetune_combined_cleaned_32710frames_steps-16000_bs-120_lr-0.0002_20251029_181856 runs/finetune_combined_cleaned_32710frames_steps-16000_bs-160_lr-0.0002_20251029_181856 recherche-a@198.164.36.108:/mnt/67202c8a-ad15-4297-8aba-aeafd1dd3341/Data2/VLA_weights_evals/Gr00t_weights/
