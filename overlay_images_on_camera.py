@@ -187,15 +187,15 @@ def main():
     
     # Load the PNG images with alpha channel
     print("Loading images...")
-    cup_img = cv2.imread("cup.png", cv2.IMREAD_UNCHANGED)
-    block_img = cv2.imread("legoblock.png", cv2.IMREAD_UNCHANGED)
+    cup_img = cv2.imread("/home/recherche-a/OneDrive_recherche_a/Linux_onedrive/Projects_linux/Thesis/lerobot/bench_test/cup.png", cv2.IMREAD_UNCHANGED)
+    block_img = cv2.imread("/home/recherche-a/OneDrive_recherche_a/Linux_onedrive/Projects_linux/Thesis/lerobot/bench_test/legoblock.png", cv2.IMREAD_UNCHANGED)
     
     if cup_img is None:
-        print("Error: Could not load cup.png")
+        print("Error: Could not load bench_test/cup.png")
         sys.exit(1)
     
     if block_img is None:
-        print("Error: Could not load legoblock.png")
+        print("Error: Could not load bench_test/legoblock.png")
         sys.exit(1)
     
     print(f"Cup image shape: {cup_img.shape}")
